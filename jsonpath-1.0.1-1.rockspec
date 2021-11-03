@@ -1,7 +1,7 @@
 package = 'jsonpath'
 version = '1.0.1-1'
 source = {
-    url = 'git://github.com/tarantool/lua-jsonpath',
+    url = 'git+https://github.com/tarantool/lua-jsonpath',
     tag = '1.0.1'
 }
 description = {
