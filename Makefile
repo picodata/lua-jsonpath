@@ -1,7 +1,10 @@
+.PHONY: dev-prepare
+dev-prepare:
+	./dev_deps.sh
+
 .PHONY: lint
 lint:
-	luacheck --config=.luacheckrc --no-unused-args --no-redefined \
-		jsonpath.lua
+	.rocks/bin/luacheck --config=.luacheckrc jsonpath.lua
 
 .PHONY: test
 test: build lint
