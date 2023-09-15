@@ -7,4 +7,5 @@ std = {
     },
     globals = {'process_request', 'package'}
 }
-redefined = False
+redefined = false
+unused_args = false
