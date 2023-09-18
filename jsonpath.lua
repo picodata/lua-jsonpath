@@ -284,7 +284,7 @@ local function eval_ast(ast, obj)
         if obj == nil then
             return nil, 'object is not set'
         end
-        for i = 2, #expr, 2 do
+        for i = 2, #expr do
             -- [1] is "var"
             local member, err = eval_ast(expr[i], obj)
             if member == nil then
@@ -428,7 +428,7 @@ local function match_path(ast, path, parent, obj)
     local ast_key, ast_spec = ast_iter(ast, 0)
     local match = MATCH_PARTIAL
 
-    for _, component in ipairs(path) do
+    for path_index, component in ipairs(path) do
         local match_component = true
         if type(ast_spec) ~= 'table' and ast_spec == '..' then
             -- handle descendant switch upfront so descendant
@@ -469,6 +469,15 @@ local function match_path(ast, path, parent, obj)
             else
                 -- 'normal' component name
                 match_component = tostring(component) == tostring(ast_spec)
+            end
+        end
+
+        -- apply filter upfront if it belongs to the currently observing component.
+        if path_index == #path and ast_spec ~= "array" and match_component then
+            local _, next_ast_spec = next(ast, ast_key)
+            if next_ast_spec ~= nil and next_ast_spec[1] == 'filter' then
+                match_component = eval_ast(next_ast_spec, obj) and true or false
+                ast_key, ast_spec = ast_iter(ast, ast_key)
             end
         end
 

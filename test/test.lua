@@ -710,6 +710,51 @@ testQuery = {
         lu.assertNil(result)
         lu.assertNotNil(err)
     end,
+
+    testFilterFirstLevel = function ()
+        local data = {
+            numeric = 0,
+            string = "0"
+        }
+        local result, err = jp.query(data, "$[?(@.numeric == 0)]")
+        lu.assertEquals(result, {data})
+        lu.assertNil(err)
+
+        local result, err = jp.query(data, '$[?(@.string == "0")]')
+        lu.assertEquals(result, {data})
+        lu.assertNil(err)
+    end,
+
+    testFilterWithDeepPropertyAccessor = function ()
+        local data = {
+            outer = {
+                inner = {
+                    key = 5
+                }
+            }
+        }
+
+        local result, err = jp.query(data, "$[?(@.outer.inner.key == 5)]")
+        lu.assertEquals(result, {data})
+        lu.assertNil(err)
+    end,
+
+    testFilterOnNestedArray = function ()
+        local data = {
+            some_unused_key = "",
+            inner = {
+                array = {
+                    {key = 1},
+                    {key = 2},
+                    {key = 3}
+                }
+            }
+        }
+
+        local result, err = jp.query(data, "$..array[?(@.key == 1 || @.key == 2)]")
+        lu.assertItemsEquals(result, {data.inner.array[1], data.inner.array[2]})
+        lu.assertNil(err)
+    end
 }
 
 
