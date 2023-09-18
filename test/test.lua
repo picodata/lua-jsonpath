@@ -725,6 +725,20 @@ testQuery = {
         lu.assertNil(err)
     end,
 
+    testFilterWithDeepPropertyAccessor = function ()
+        local data = {
+            outer = {
+                inner = {
+                    key = 5
+                }
+            }
+        }
+
+        local result, err = jp.query(data, "$[?(@.outer.inner.key == 5)]")
+        lu.assertEquals(result, {data})
+        lu.assertNil(err)
+    end,
+
     testFilterOnNestedArray = function ()
         local data = {
             some_unused_key = "",
