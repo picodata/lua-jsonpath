@@ -1,5 +1,5 @@
 .PHONY: dev-prepare
-dev-prepare:
+dev-prepare: build
 	./dev_deps.sh
 
 .PHONY: lint
