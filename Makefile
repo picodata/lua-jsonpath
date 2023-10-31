@@ -12,6 +12,6 @@ test: build lint
 
 .PHONY: build
 build:
-	tarantoolctl rocks make
+	tarantoolctl rocks make jsonpath-pico.scm-1.rockspec
 
 all: build test
