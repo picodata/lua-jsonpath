@@ -739,7 +739,24 @@ testQuery = {
         lu.assertNil(err)
     end,
 
-    testFilterOnNestedArray = function ()
+  testDirectFilter = function ()
+        local data = {
+            some_unused_key = "",
+            inner = {
+                array = {
+                    {key = 1},
+                    {key = 2},
+                    {key = 3}
+                }
+            }
+        }
+
+        local result, err = jp.query(data, "$.array[?(@.key == 1 || @.key == 2)]")
+        lu.assertItemsEquals(result, {data.inner.array[1], data.inner.array[2]})
+        lu.assertNil(err)
+    end,
+
+    testRecursiveOperatorFilter = function ()
         local data = {
             some_unused_key = "",
             inner = {
