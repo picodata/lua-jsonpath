@@ -739,7 +739,7 @@ testQuery = {
         lu.assertNil(err)
     end,
 
-  testDirectFilter = function ()
+  testDirectFilter1 = function ()
         local data = {
             some_unused_key = "",
             inner = {
@@ -751,8 +751,38 @@ testQuery = {
             }
         }
 
-        local result, err = jp.query(data, "$.array[?(@.key == 1 || @.key == 2)]")
+        local result, err = jp.query(data, "$.inner.array[?(@.key == 1 || @.key == 2)]")
         lu.assertItemsEquals(result, {data.inner.array[1], data.inner.array[2]})
+        lu.assertNil(err)
+    end,
+
+    testDirectFilter2 = function ()
+        local data = {
+            some_unused_key = "",
+            array = {
+                {key = 1},
+                {key = 2},
+                {key = 3}
+            }
+        }
+
+        local result, err = jp.query(data, "array[?(@.key == 1 || @.key == 2)]")
+        lu.assertItemsEquals(result, {data.array[1], data.array[2]})
+        lu.assertNil(err)
+    end,
+
+    testDirectFilter3 = function ()
+        local data = {
+            some_unused_key = "",
+            array = {
+                {key = 1},
+                {key = 2},
+                {key = 3}
+            }
+        }
+
+        local result, err = jp.query(data, "array[?(@.key < 2)]")
+        lu.assertItemsEquals(result, {data.array[1]})
         lu.assertNil(err)
     end,
 

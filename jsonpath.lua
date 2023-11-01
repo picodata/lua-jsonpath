@@ -485,6 +485,12 @@ local function match_path(ast, path, parent, obj)
         if match_component then
             descendants = false
         else
+            -- if there are no matches and the object is an array,
+            -- then you need to iterate through its elements
+            if type(obj) == "table" and obj[1] ~= nil then
+                descendants = true
+            end
+
             if not descendants then
                 match = MISMATCH
                 break
