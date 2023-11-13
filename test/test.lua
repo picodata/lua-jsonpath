@@ -802,7 +802,8 @@ testQuery = {
         lu.assertItemsEquals(result, {data.inner.array[1], data.inner.array[2]})
         lu.assertNil(err)
     end,
-    testRecursiveOperatorFilter1 = function()
+    
+    testRecursiveOperatorFilterGT = function()
         local data = {
             photo = {
                 size = 400,
