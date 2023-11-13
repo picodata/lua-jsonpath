@@ -801,7 +801,19 @@ testQuery = {
         local result, err = jp.query(data, "$..array[?(@.key == 1 || @.key == 2)]")
         lu.assertItemsEquals(result, {data.inner.array[1], data.inner.array[2]})
         lu.assertNil(err)
-    end
+    end,
+    
+    testRecursiveOperatorFilterGT = function()
+        local data = {
+            photo = {
+                size = 400,
+            },
+        }
+
+        local result, err = jp.query(data, "$..photo[?(@.size>'400')]")
+        lu.assertItemsEquals(result, {})
+        lu.assertNil(err)
+    end,
 }
 
 

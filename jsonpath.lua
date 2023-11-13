@@ -284,6 +284,9 @@ local function eval_ast(ast, obj)
         if obj == nil then
             return nil, 'object is not set'
         end
+        if type(obj) ~= "table" then
+            return nil, 'object is primitive'
+        end
         for i = 2, #expr do
             -- [1] is "var"
             local member, err = eval_ast(expr[i], obj)
