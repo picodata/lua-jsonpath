@@ -355,7 +355,8 @@ testQuery = {
             { path = {'$', 'store', 'book', 0, 'author'}, value = 'Nigel Rees' },
             { path = {'$', 'store', 'book', 1, 'author'}, value = 'Evelyn Waugh' },
             { path = {'$', 'store', 'book', 2, 'author'}, value = 'Herman Melville' },
-            { path = {'$', 'store', 'book', 3, 'author'}, value = 'J. R. R. Tolkien' }
+            { path = {'$', 'store', 'book', 3, 'author'}, value = 'J. R. R. Tolkien' },
+            { path = {'$', 'store', 'book', 4, 'author'}, value = 'Douglas Noël Adams' },
         }))
     end,
 
@@ -366,7 +367,8 @@ testQuery = {
             { path = {'$', 'store', 'book', 0, 'author'}, value = 'Nigel Rees' },
             { path = {'$', 'store', 'book', 1, 'author'}, value = 'Evelyn Waugh' },
             { path = {'$', 'store', 'book', 2, 'author'}, value = 'Herman Melville' },
-            { path = {'$', 'store', 'book', 3, 'author'}, value = 'J. R. R. Tolkien' }
+            { path = {'$', 'store', 'book', 3, 'author'}, value = 'J. R. R. Tolkien' },
+            { path = {'$', 'store', 'book', 4, 'author'}, value = 'Douglas Noël Adams' },
         }))
     end,
 
@@ -387,6 +389,7 @@ testQuery = {
             { path = {'$', 'store', 'book', 1, 'price'}, value = 12.99 },
             { path = {'$', 'store', 'book', 2, 'price'}, value = 8.99 },
             { path = {'$', 'store', 'book', 3, 'price'}, value = 22.99 },
+            { path = {'$', 'store', 'book', 4, 'price'}, value = 42LL },
             { path = {'$', 'store', 'bicycle', 'price'}, value = 19.95 }
         }))
     end,
@@ -395,7 +398,7 @@ testQuery = {
         local results, err = jp.nodes(data, '$..book[(@.length-1)]')
         lu.assertNil(err)
         lu.assertItemsEquals(results, {
-            { path = {'$', 'store', 'book', 3}, value = data.store.book[4] }
+            { path = {'$', 'store', 'book', 4}, value = data.store.book[5] }
         })
     end,
 
@@ -453,6 +456,7 @@ testQuery = {
             { path = { '$', 'store', 'book', 1 }, value = data.store.book[2] },
             { path = { '$', 'store', 'book', 2 }, value = data.store.book[3] },
             { path = { '$', 'store', 'book', 3 }, value = data.store.book[4] },
+            { path = { '$', 'store', 'book', 4 }, value = data.store.book[5] },
             { path = { '$', 'store', 'book', 0, 'category' }, value = 'reference' },
             { path = { '$', 'store', 'book', 0, 'author' }, value = 'Nigel Rees' },
             { path = { '$', 'store', 'book', 0, 'title' }, value = 'Sayings of the Century' },
@@ -471,6 +475,10 @@ testQuery = {
             { path = { '$', 'store', 'book', 3, 'title' }, value = 'The Lord of the Rings' },
             { path = { '$', 'store', 'book', 3, 'isbn' }, value = '0-395-19395-8' },
             { path = { '$', 'store', 'book', 3, 'price' }, value = 22.99 },
+            { path = { '$', 'store', 'book', 4, 'category' }, value = 'guides' },
+            { path = { '$', 'store', 'book', 4, 'author' }, value = 'Douglas Noël Adams' },
+            { path = { '$', 'store', 'book', 4, 'title' }, value = 'The Hitchhiker’s Guide to the Galaxy' },
+            { path = { '$', 'store', 'book', 4, 'price' }, value = 42LL },
             { path = { '$', 'store', 'bicycle', 'color' }, value = 'red' },
             { path = { '$', 'store', 'bicycle', 'price' }, value = 19.95 }
         }))
@@ -565,7 +573,7 @@ testQuery = {
         local results, err = jp.query(data, "$.store.book[-1:]")
         lu.assertNil(err)
         lu.assertItemsEquals(results, {
-            data.store.book[4]
+            data.store.book[5]
         })
     end,
 
@@ -573,8 +581,8 @@ testQuery = {
         local results, err = jp.query(data, "$.store.book[-2:]")
         lu.assertNil(err)
         lu.assertItemsEquals(results, {
-            data.store.book[3],
-            data.store.book[4]
+            data.store.book[4],
+            data.store.book[5]
         })
     end,
 
@@ -582,7 +590,7 @@ testQuery = {
         local results, err = jp.query(data, "$.store.book[-2:-1]")
         lu.assertNil(err)
         lu.assertItemsEquals(results, {
-            data.store.book[3]
+            data.store.book[4]
         })
     end,
 
@@ -814,6 +822,17 @@ testQuery = {
         lu.assertItemsEquals(result, {})
         lu.assertNil(err)
     end,
+
+    test64Int = function ()
+        local result, err = jp.query(data, "$..book[?( @.price && (@.price == '42') )]")
+        lu.assertItemsEquals(result, { {
+            author="Douglas Noël Adams",
+            category="guides",
+            price=42LL,
+            title="The Hitchhiker’s Guide to the Galaxy"
+        } })
+        lu.assertNil(err)
+    end,
 }
 
 
@@ -890,7 +909,8 @@ testGrammer = {
             { path = {'$', 'store', 'book', 0, 'author'}, value = 'Nigel Rees' },
             { path = {'$', 'store', 'book', 1, 'author'}, value = 'Evelyn Waugh' },
             { path = {'$', 'store', 'book', 2, 'author'}, value = 'Herman Melville' },
-            { path = {'$', 'store', 'book', 3, 'author'}, value = 'J. R. R. Tolkien' }
+            { path = {'$', 'store', 'book', 3, 'author'}, value = 'J. R. R. Tolkien' },
+            { path = {'$', 'store', 'book', 4, 'author'}, value = 'Douglas Noël Adams' },
         })
     end,
 
@@ -905,7 +925,8 @@ testGrammer = {
             'Nigel Rees',
             'Evelyn Waugh',
             'Herman Melville',
-            'J. R. R. Tolkien'
+            'J. R. R. Tolkien',
+            'Douglas Noël Adams',
         })
     end,
 }
@@ -957,7 +978,7 @@ testDocumentation = {
         local results, err = jp.nodes(data, '$..book[-1:]')
         lu.assertNil(err)
         lu.assertItemsEquals(results, sortByPath({
-            { path = {'$', 'store', 'book', 3 }, value = data.store.book[4] }
+            { path = {'$', 'store', 'book', 4 }, value = data.store.book[5] }
         }))
     end,
 
@@ -965,8 +986,8 @@ testDocumentation = {
         local results, err = jp.nodes(data, '$..book[-2:]')
         lu.assertNil(err)
         lu.assertItemsEquals(results, sortByPath({
-            { path = {'$', 'store', 'book', 2 }, value = data.store.book[3] },
-            { path = {'$', 'store', 'book', 3 }, value = data.store.book[4] }
+            { path = {'$', 'store', 'book', 3 }, value = data.store.book[4] },
+            { path = {'$', 'store', 'book', 4 }, value = data.store.book[5] }
         }))
     end,
 
@@ -974,7 +995,7 @@ testDocumentation = {
         local results, err = jp.nodes(data, '$..book[-2:-1]')
         lu.assertNil(err)
         lu.assertItemsEquals(results, sortByPath({
-            { path = {'$', 'store', 'book', 2 }, value = data.store.book[3] }
+            { path = {'$', 'store', 'book', 3 }, value = data.store.book[4] }
         }))
     end,
 
@@ -1024,7 +1045,13 @@ testDocumentation = {
     testReadmeQueryExample = function()
         local author, err = jp.query(data, '$..author')
         lu.assertNil(err)
-        lu.assertItemsEquals(author, { 'Nigel Rees', 'Evelyn Waugh', 'Herman Melville', 'J. R. R. Tolkien' })
+        lu.assertItemsEquals(author, {
+            'Nigel Rees',
+            'Evelyn Waugh',
+            'Herman Melville',
+            'J. R. R. Tolkien',
+            'Douglas Noël Adams',
+        })
     end,
 
     testReadmeValueExample = function()
@@ -1040,7 +1067,8 @@ testDocumentation = {
             {'$', 'store', 'book', 0, 'author' },
             {'$', 'store', 'book', 1, 'author' },
             {'$', 'store', 'book', 2, 'author' },
-            {'$', 'store', 'book', 3, 'author' }
+            {'$', 'store', 'book', 3, 'author' },
+            {'$', 'store', 'book', 4, 'author' },
         })
     end,
 

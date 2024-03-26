@@ -52,6 +52,11 @@ return {
                 title = 'The Lord of the Rings',
                 isbn = '0-395-19395-8',
                 price = 22.99
+            }, {
+                category = 'guides',
+                author = 'Douglas Noël Adams',
+                title = 'The Hitchhiker’s Guide to the Galaxy',
+                price = 42LL
             }
         }
     }
