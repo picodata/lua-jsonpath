@@ -100,6 +100,7 @@
 ]]--
 local M = {}
 
+local ffi = require('ffi')
 
 -- Use Roberto Ierusalimschy's fabulous LulPeg pattern-matching library
 local lulpeg = require('lulpeg')
@@ -269,6 +270,8 @@ local function eval_ast(ast, obj)
         if type(op1) == 'boolean' then
             return op2 and true or false
         elseif type(op1) == 'number' then
+            return tonumber(op2)
+        elseif type(op1) == 'cdata' and tostring(ffi.typeof(op1)) == 'ctype<int64_t>' then
             return tonumber(op2)
         end
         return tostring(op2 or '')
