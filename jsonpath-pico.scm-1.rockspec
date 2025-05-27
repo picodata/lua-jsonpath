@@ -20,7 +20,7 @@ The Lua JsonPath library was written from scratch by Frank Edelhaeuser. It's a p
 }
 dependencies = {
    "lua >= 5.1",
-   "lulpeg ~> pico.0"
+   "lulpeg ~> pico.0.1.3-1"
 }
 build = {
    type = "builtin",
