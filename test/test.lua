@@ -149,6 +149,13 @@ testParse = {
         })
     end,
 
+    testParseLongSingularQuery = function()
+        local path, err = jp.parse('$..book[?(@.arr[1].arr["a"].field)]')
+        local expr_ast = {'expr', {'var', 'arr', 1, 'arr', 'a', 'field'}}
+        lu.assertNil(err)
+        lu.assertEquals(path, { '$', '..', 'book', { 'filter', expr_ast }})
+    end,
+
     testParsePathToMatchAllElements = function()
         local path, err = jp.parse('$..*')
         lu.assertNil(err)
@@ -821,6 +828,45 @@ testQuery = {
         local result, err = jp.query(data, "$..photo[?(@.size>'400')]")
         lu.assertItemsEquals(result, {})
         lu.assertNil(err)
+    end,
+
+    testFilterNull = function()
+        local array = {
+            { item = 1, existing_field = nil },
+            { item = 2, existing_field = jp.NULL },
+            { item = 3, existing_field = 3 },
+        }
+        local result, err = jp.query(array, "$[?(@.existing_field==null)]")
+        lu.assertItemsEquals(result, { array[2] })
+        lu.assertNil(err)
+    end,
+
+    testFilterInnerSubscript = function()
+        local array = {
+            { array_field = { "prod", "no" } },
+            { array_field = { "test", "yes" } },
+        }
+        local result, err = jp.query(array, '$[?(@.array_field[1]=="test")]')
+        lu.assertNil(err)
+        lu.assertItemsEquals(result, { array[2] })
+    end,
+
+    testFilterSubscriptEqualsNull = function()
+        local array = {
+            { array_field = { { value = "jp.NULL" }, "fake null" } },
+            { array_field = { { value = jp.NULL}, "real null" } },
+            { array_field = { { value = nil }, "lua null" } },
+        }
+        local result, err = jp.query(array, '$[?(@.array_field[1].value==null)]')
+        lu.assertNil(err)
+        lu.assertItemsEquals(result, { array[2] })
+    end,
+
+    testFilterUnionValue = function()
+        local has_no_isbn_query = '$.store.book[1,3,5][?(@.isbn!="0-553-21311-3")]'
+        local result, err = jp.query(data, has_no_isbn_query)
+        lu.assertNil(err)
+        lu.assertEquals(result, { data.store.book[4] })
     end,
 
     test64Int = function ()

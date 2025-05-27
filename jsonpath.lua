@@ -114,6 +114,16 @@ local MATCH_ONE = 1
 local MATCH_DESCENDANTS = 2
 local MATCH_PARTIAL = 3
 
+local NULL = box.NULL or ffi.cast("void*", ffi.new('uintptr_t', 0))
+M.NULL = NULL
+
+local function is_nil(val)
+    return not val and val == nil
+end
+
+local function is_null(val)
+    return val and val == NULL or false
+end
 
 -- Generate JsonPath grammer
 local jsonpath_grammer = (function()
@@ -131,6 +141,10 @@ local jsonpath_grammer = (function()
         return s:lower() == 'true' and true or false
     end
 
+    local function tonull(_)
+        return NULL
+    end
+
     local function reduce_expr(expr)
         for i = 2, #expr, 2 do
             if type(expr[i]) == 'table' then
@@ -144,14 +158,12 @@ local jsonpath_grammer = (function()
     end
 
     local space = S ' \t\n'
-    local opt_space = space ^ 0
+    local S_0 = space ^ 0
 
-    local lparen = '(' * opt_space
-    local rparen = ')' * opt_space
-    local lbrack = '[' * opt_space
-    local rbrack = ']'
-    local comma = ',' * opt_space
-    local colon = ':' * opt_space
+    local lparen = '(' * S_0
+    local rparen = ')' * S_0
+    local comma = ',' * S_0
+    local colon = ':' * S_0
     local quote = P '"'
     local apos = P "'"
     local root = P '$'
@@ -179,28 +191,29 @@ local jsonpath_grammer = (function()
         return u;
     end * quote
 
-    local string_literal = (string_q + string_qq) * opt_space
-    local number_literal = C(number_hex + number_rat) / tonumber * opt_space
-    local boolean_literal = C(anycase('true') + anycase('false')) / toboolean * opt_space
+    local string_literal = (string_q + string_qq) * S_0
+    local number_literal = C(number_hex + number_rat) / tonumber * S_0
+    local boolean_literal = C(anycase('true') + anycase('false')) / toboolean * S_0
+    local null_literal = C(anycase('null')) / tonull * S_0
 
-    local name = C(alpha0 * alphaN ^ 0) * opt_space
-    local var_dot = at * dot * C(alpha0 * alphaN ^ 0) * (dot * C(alpha0 * alphaN ^ 0)) ^ 0
-    local var_brack = at * lbrack * string_literal * rbrack
-    local var = (var_dot + var_brack) * opt_space
-    local var_length = at * dot * P 'length' * opt_space
+    local literal = string_literal + number_literal + boolean_literal + null_literal
+    local index_literal = string_literal + number_literal
 
-    local child_index = C(sign ^ -1 * digit ^ 1) * opt_space
+    local name = C(alpha0 * alphaN ^ 0) * S_0
+    local var_length = at * dot * P 'length' * S_0
+
+    local child_index = C(sign ^ -1 * digit ^ 1) * S_0
 
 
     -- operators (6 = highest precedence), subset of https://sqlite.org/lang_expr.html
-    local op_prec_6 = C(S '*/%') * opt_space
-    local op_prec_5 = C(S '+-') * opt_space
-    local op_prec_4 = C(P '<=' + P '>=' + S '<>') * opt_space
-    local op_prec_3 = C(P '==' + P '=' + P '!=' + P '<>') * opt_space
-    local op_prec_2 = C(anycase('AND') + '&&') * opt_space
-    local op_prec_1 = C(anycase('OR') + '||') * opt_space
+    local op_prec_6 = C(S '*/%') * S_0
+    local op_prec_5 = C(S '+-') * S_0
+    --- JsonPath specification equals precedence of all comparison operations
+    local comparison_op = C(P '==' + P '=' + P '!=' + P '<>' + P '<=' + P '>=' + S '<>') * S_0
+    local op_prec_2 = C(anycase('AND') + '&&') * S_0
+    local op_prec_1 = C(anycase('OR') + '||') * S_0
 
-    local jsonpath = opt_space * P {
+    local jsonpath = S_0 * P {
         'JSONPATH',
 
         JSONPATH = Ct(V 'CHILD_1' * V 'CHILD_N' ^ 0),
@@ -220,43 +233,55 @@ local jsonpath_grammer = (function()
 
         CHILD_SUBSCRIPT = '[' * Ct(V 'CHILD_SUBSCRIPT_EXPR') * ']',
 
-        CHILD_SUBSCRIPT_EXPR = V 'CHILD_ALL' + -- *
+        CHILD_SUBSCRIPT_EXPR = V 'WILDCARD_SELECTOR' + -- *
                 V 'CHILD_UNION' + -- n1[,n2[,...]] or (script)
-                V 'CHILD_SLICE' + -- [start]:[end][:step]
-                V 'CHILD_FILTER', -- ?(x > 10)
-
-        CHILD_ALL = Cc('*') * '*',
+                V 'SLICE_SELECTOR' + -- [start]:[end][:step]
+                V 'FILTER_SELECTOR', -- ?(x > 10)
 
         CHILD_UNION = Cc('union') * V 'CHILD_UNION_EXPR' * (comma * V 'CHILD_UNION_EXPR') ^ 0 +
-                Cc('union') * '(' * opt_space * Ct(V 'CHILD_EXPR') * ')',
+                Cc('union') * '(' * S_0 * Ct(Cc('expr') * V 'LOGICAL_EXPR') * ')',
 
-        CHILD_SLICE = Cc('slice') * (child_index + Cc '0') * colon
+        SLICE_SELECTOR = Cc('slice') * (child_index + Cc '0') * colon
                 * (child_index + Cc 'nil') * ((colon * child_index) + Cc '1'),
 
-        CHILD_FILTER = Cc('filter') * '?(' * opt_space * Ct(V 'CHILD_EXPR') * ')',
-
-        CHILD_UNION_EXPR = Ct(V 'CHILD_SLICE') +
+        CHILD_UNION_EXPR = Ct(V 'SLICE_SELECTOR') +
                 string_literal +
                 child_index,
 
-        CHILD_EXPR = Cc('expr') * V 'EXPR',
+        SELECTOR = V 'WILDCARD_SELECTOR' + V 'SLICE_SELECTOR' + V 'FILTER_SELECTOR' + V 'INDEX_SELECTOR',
 
-        -- Expressions, try matching lowest precedence first
-        EXPR = Ct(Cc('expr') * V 'EXP2' * (op_prec_1 * V 'EXP2') ^ 0) / reduce_expr,
-        EXP2 = Ct(Cc('expr') * V 'EXP3' * (op_prec_2 * V 'EXP3') ^ 0),
-        EXP3 = Ct(Cc('expr') * V 'EXP4' * (op_prec_3 * V 'EXP4') ^ 0),
-        EXP4 = Ct(Cc('expr') * V 'EXP5' * (op_prec_4 * V 'EXP5') ^ 0),
-        EXP5 = Ct(Cc('expr') * V 'EXP6' * (op_prec_5 * V 'EXP6') ^ 0),
-        EXP6 = Ct(Cc('expr') * V 'FACT' * (op_prec_6 * V 'FACT') ^ 0),
+        INDEX_SELECTOR = Ct(Cc('expr') * number_literal),
+        FILTER_SELECTOR = Cc('filter') * '?' * S_0 * Ct(Cc('expr') * V 'LOGICAL_EXPR'),
+        WILDCARD_SELECTOR = Cc('*') * '*',
 
-        FACT = string_literal +
-                number_literal +
-                boolean_literal +
-                Ct(Cc('var.length') * var_length) +
-                Ct(Cc('var') * var) +
-                lparen * V 'EXPR' * rparen,
+        LOGICAL_EXPR = Ct(Cc('expr') * V 'LOGICAL_OR_EXPR') / reduce_expr * S_0 ,
+        LOGICAL_OR_EXPR = Ct(Cc('expr') * V 'LOGICAL_AND_EXPR' * (op_prec_1 * V 'LOGICAL_AND_EXPR') ^ 0) * S_0,
+        LOGICAL_AND_EXPR = Ct(Cc('expr') * V 'COMPARISON_EXPR' * (op_prec_2 * V 'COMPARISON_EXPR') ^ 0) * S_0,
+        COMPARISON_EXPR = Ct(Cc('expr') * V 'SUM_EXPR' * (comparison_op * V 'SUM_EXPR') ^ 0) * S_0,
+        SUM_EXPR = Ct(Cc('expr') * V 'MULT_EXPR' * (op_prec_5 * V 'MULT_EXPR') ^ 0) * S_0,
+        MULT_EXPR = Ct(Cc('expr') * V 'BASIC_EXPR' * (op_prec_6 * V 'BASIC_EXPR') ^ 0 ) * S_0,
 
-    } * opt_space
+        BASIC_EXPR = V 'LITERAL_EXPR' + V 'PAREN_EXPR' + V 'SINGULAR_QUERY',
+
+        LITERAL_EXPR = Ct(Cc('expr') * literal),
+        PAREN_EXPR = lparen * V 'LOGICAL_EXPR' * rparen,
+        SINGULAR_QUERY = V 'REL_SINGULAR_QUERY' * S_0,
+        REL_SINGULAR_QUERY = Ct(Cc('var.length') * var_length) + Ct(Cc('var') * at * V 'SINGULAR_QUERY_SEGMENTS') ,
+        SINGULAR_QUERY_SEGMENTS = (V 'NAME_SEGMENT' + V 'INDEX_SEGMENT') ^ 0,
+        NAME_SEGMENT = dot * V 'CHILD_NAME',
+        INDEX_SEGMENT = '[' * S_0 * index_literal * S_0 * ']',
+
+        FILTER_QUERY = V 'REL_QUERY',
+        REL_QUERY = at * V 'SEGMENTS',
+
+        SEGMENTS = (S_0 * V 'SEGMENT') ^ 0,
+        SEGMENT = V 'CHILD_SEGMENT' + V 'DESCENDANT_SEGMENT',
+        CHILD_SEGMENT = V 'BRACKETED_SELECTION' + (dot * (V 'WILDCARD_SELECTOR' + V 'MEMBER_NAME')),
+        DESCENDANT_SEGMENT = Cc('..') * '..' + (V 'BRACKETED_SELECTION' + V 'WILDCARD_SELECTOR' + V 'MEMBER_NAME'),
+
+        BRACKETED_SELECTION = '[' * S_0 * V 'SELECTOR' * ( S_0 * ',' * S_0 * V 'SELECTOR') ^ 0 * S_0 * ']',
+        MEMBER_NAME = Ct(Cc('var') * V 'CHILD_NAME'),
+    } * S_0
 
     return jsonpath
 end)()
@@ -273,6 +298,8 @@ local function eval_ast(ast, obj)
             return tonumber(op2)
         elseif type(op1) == 'cdata' and tostring(ffi.typeof(op1)) == 'ctype<int64_t>' then
             return tonumber(op2)
+        elseif is_null(op1) then
+            return op2
         end
         return tostring(op2 or '')
     end
@@ -297,7 +324,7 @@ local function eval_ast(ast, obj)
                 return nil, err
             end
             obj = obj[member]
-            if obj == nil then
+            if is_nil(obj) then
                 return nil, 'object doesn\'t contain an object or attribute "' .. member .. '"'
             end
         end
@@ -362,7 +389,7 @@ local function eval_ast(ast, obj)
     -- Helper helper: evaluate expression inside abstract syntax tree
     local function eval_expr(expr, obj)
         local op1, err = eval_ast(expr[2], obj) -- [1] is "expr"
-        if op1 == nil then
+        if is_nil(op1) then
             return nil, err
         end
         for i = 3, #expr, 2 do
@@ -371,7 +398,7 @@ local function eval_ast(ast, obj)
                 return nil, 'missing expression operator'
             end
             local op2, err = eval_ast(expr[i + 1], obj)
-            if op2 == nil then
+            if is_nil(op2) then
                 return nil, err
             end
             if operator == '+' then
@@ -408,7 +435,7 @@ local function eval_ast(ast, obj)
     end
 
     -- Evaluate abstract syntax tree
-    if type(ast) == 'number' or type(ast) == 'string' or type(ast) == 'boolean' then
+    if type(ast) == 'number' or type(ast) == 'string' or type(ast) == 'boolean' or is_null(ast) then
         return ast
     elseif ast[1] == 'expr' then
         return eval_expr(ast, obj)
@@ -455,6 +482,7 @@ local function match_path(ast, path, parent, obj)
             elseif ast_spec[1] == 'union' or ast_spec[1] == 'slice' then
                 -- match union or slice expression (on parent object)
                 local matches = eval_ast(ast_spec, parent)
+                --- @cast matches table[]
                 for _, i in pairs(matches) do
                     match_component = tostring(i) == tostring(component)
                     if match_component then
@@ -493,7 +521,7 @@ local function match_path(ast, path, parent, obj)
         else
             -- if there are no matches and the object is an array,
             -- then you need to iterate through its elements
-            if type(obj) == "table" and obj[1] ~= nil then
+            if type(obj) == "table" and not is_nil(obj[1]) then
                 descendants = true
             end
 
