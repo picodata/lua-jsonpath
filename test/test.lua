@@ -846,7 +846,7 @@ testQuery = {
             { array_field = { "prod", "no" } },
             { array_field = { "test", "yes" } },
         }
-        local result, err = jp.query(array, '$[?(@.array_field[1]=="test")]')
+        local result, err = jp.query(array, '$[?(@.array_field[0]=="test")]')
         lu.assertNil(err)
         lu.assertItemsEquals(result, { array[2] })
     end,
@@ -857,9 +857,24 @@ testQuery = {
             { array_field = { { value = jp.NULL}, "real null" } },
             { array_field = { { value = nil }, "lua null" } },
         }
-        local result, err = jp.query(array, '$[?(@.array_field[1].value==null)]')
+        local result, err = jp.query(array, '$[?(@.array_field[0].value==null)]')
         lu.assertNil(err)
         lu.assertItemsEquals(result, { array[2] })
+    end,
+
+    testFilterSubscriptInLogicalAnd = function()
+        local array = {
+            { array_field = { { value = "jp.NULL" }, "fake null" }, name = "A" },
+            { array_field = { { value = jp.NULL }, "real null" }, name = "B" },
+            { array_field = { { value = "something" }, "real null 2" } , name = "C" },
+            { array_field = { { value = nil }, "lua null" } , name = "D" },
+        }
+        local result, err = jp.query(array, '$[?(@.name=="B" && @.array_field[0].value==null)]')
+        lu.assertNil(err)
+        lu.assertItemsEquals(result, { array[2] })
+        result, err = jp.query(array, '$[?(@.name=="C" && @.array_field[0].value=="something")]')
+        lu.assertNil(err)
+        lu.assertItemsEquals(result, { array[3] })
     end,
 
     testFilterUnionValue = function()

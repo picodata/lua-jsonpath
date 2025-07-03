@@ -323,6 +323,7 @@ local function eval_ast(ast, obj)
             if member == nil then
                 return nil, err
             end
+            member = type(member) == 'number' and member + 1 or member
             obj = obj[member]
             if is_nil(obj) then
                 return nil, 'object doesn\'t contain an object or attribute "' .. member .. '"'
