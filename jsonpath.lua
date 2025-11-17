@@ -293,7 +293,12 @@ local function eval_ast(ast, obj)
     -- Helper helper: match type of second operand to type of first operand
     local function match_type(op1, op2)
         if type(op1) == 'boolean' then
-            return op2 and true or false
+            if is_null(op2) then
+                -- null must never be equal to other boolean, invert op1
+                return not op1
+            else
+                return (op2 and true or false)
+            end
         elseif type(op1) == 'number' then
             return tonumber(op2)
         elseif type(op1) == 'cdata' and tostring(ffi.typeof(op1)) == 'ctype<int64_t>' then
