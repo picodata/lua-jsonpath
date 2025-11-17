@@ -841,6 +841,35 @@ testQuery = {
         lu.assertNil(err)
     end,
 
+    testNullBoolEquality = function()
+        lu.assertIsFalse(jp.NULL == true)
+        lu.assertIsTrue(jp.NULL ~= true)
+        lu.assertIsTrue(true ~= jp.NULL)
+        lu.assertIsFalse(jp.NULL == false)
+        lu.assertIsTrue(jp.NULL ~= false)
+        lu.assertIsTrue(false ~= jp.NULL)
+    end,
+
+    testFilterNullBool = function()
+        local array = {
+            { id = 1, is_end = nil },
+            { id = 2, is_end = jp.NULL },
+            { id = 3, is_end = true },
+            { id = 4, is_end = false },
+        }
+        local result, err = jp.query(array, "$[?(@.is_end==null)]")
+        lu.assertItemsEquals(result, { array[2] })
+        lu.assertNil(err)
+
+        result, err = jp.query(array, "$[?(@.is_end!=null)]")
+        lu.assertItemsEquals(result, { array[3], array[4] })
+        lu.assertNil(err)
+
+        result, err = jp.query(array, "$[?(null==@.is_end)]")
+        lu.assertItemsEquals(result, { array[2] })
+        lu.assertNil(err)
+    end,
+
     testFilterInnerSubscript = function()
         local array = {
             { array_field = { "prod", "no" } },
