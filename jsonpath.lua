@@ -426,12 +426,24 @@ local function eval_ast(ast, obj)
             elseif operator == '<>' or operator == '!=' then
                 op1 = op1 ~= match_type(op1, op2)
             elseif operator == '>' then
+                if is_null(op1) then
+                    return false
+                end
                 op1 = op1 > match_type(op1, op2)
             elseif operator == '>=' then
+                if is_null(op1) then
+                    return false
+                end
                 op1 = op1 >= match_type(op1, op2)
             elseif operator == '<' then
+                if is_null(op1) then
+                    return false
+                end
                 op1 = op1 < match_type(op1, op2)
             elseif operator == '<=' then
+                if is_null(op1) then
+                    return false
+                end
                 op1 = op1 <= match_type(op1, op2)
             else
                 return nil, 'unknown expression operator "' .. operator .. '"'
