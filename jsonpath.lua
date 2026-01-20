@@ -297,9 +297,18 @@ local function eval_ast(ast, obj)
                 -- null must never be equal to other boolean, invert op1
                 return not op1
             else
+                if type(op2) == 'string'  then
+                    return {}
+                end
+                if type(op2) == 'number' then
+                    return op2 ~= 0
+                end
                 return (op2 and true or false)
             end
         elseif type(op1) == 'number' then
+            if type(op2) == 'boolean' then
+                return op2 and 1 or 0
+            end
             return tonumber(op2)
         elseif type(op1) == 'cdata' and tostring(ffi.typeof(op1)) == 'ctype<int64_t>' then
             return tonumber(op2)
@@ -312,6 +321,10 @@ local function eval_ast(ast, obj)
     -- Helper helper: convert operand to boolean
     local function notempty(op1)
         return op1 and true or false
+    end
+
+    local function is_bool(val)
+        return type(val) == 'boolean'
     end
 
     -- Helper helper: evaluate variable expression inside abstract syntax tree
@@ -408,14 +421,29 @@ local function eval_ast(ast, obj)
                 return nil, err
             end
             if operator == '+' then
+                if is_bool(op1) or is_bool(op2) then
+                    return nil, "Prohibited arithmetic op on bool"
+                end
                 op1 = tonumber(op1) + tonumber(op2)
             elseif operator == '-' then
+                if is_bool(op1) or is_bool(op2) then
+                    return nil, "Prohibited arithmetic op on bool"
+                end
                 op1 = tonumber(op1) - tonumber(op2)
             elseif operator == '*' then
+                if is_bool(op1) or is_bool(op2) then
+                    return nil, "Prohibited arithmetic op on bool"
+                end
                 op1 = tonumber(op1) * tonumber(op2)
             elseif operator == '/' then
+                if is_bool(op1) or is_bool(op2) then
+                    return nil, "Prohibited arithmetic op on bool"
+                end
                 op1 = tonumber(op1) / tonumber(op2)
             elseif operator == '%' then
+                if is_bool(op1) or is_bool(op2) then
+                    return nil, "Prohibited arithmetic op on bool"
+                end
                 op1 = tonumber(op1) % tonumber(op2)
             elseif operator:upper() == 'AND' or operator == '&&' then
                 op1 = notempty(op1) and notempty(op2)
@@ -426,22 +454,22 @@ local function eval_ast(ast, obj)
             elseif operator == '<>' or operator == '!=' then
                 op1 = op1 ~= match_type(op1, op2)
             elseif operator == '>' then
-                if is_null(op1) then
+                if is_null(op1) or is_bool(op1) then
                     return false
                 end
                 op1 = op1 > match_type(op1, op2)
             elseif operator == '>=' then
-                if is_null(op1) then
+                if is_null(op1) or is_bool(op1) then
                     return false
                 end
                 op1 = op1 >= match_type(op1, op2)
             elseif operator == '<' then
-                if is_null(op1) then
+                if is_null(op1) or is_bool(op1) then
                     return false
                 end
                 op1 = op1 < match_type(op1, op2)
             elseif operator == '<=' then
-                if is_null(op1) then
+                if is_null(op1) or is_bool(op1) then
                     return false
                 end
                 op1 = op1 <= match_type(op1, op2)
