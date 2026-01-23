@@ -946,6 +946,112 @@ testQuery = {
         lu.assertNil(err)
         lu.assertItemsEquals(result, { array[2], array[3] })
     end,
+
+    testFilterIntBoolComparison = function ()
+        local array = {
+            { id = 1, value = 0 },
+            { id = 2, value = 1 },
+            { id = 3, value = 2 },
+        }
+        local result, err = jp.query(array, '$[?(@.value==true)]')
+        lu.assertNil(err)
+        lu.assertItemsEquals(result, { array[2] })
+
+        local result, err = jp.query(array, '$[?(@.value>true)]')
+        lu.assertNil(err)
+        lu.assertItemsEquals(result, { array[3] })
+
+        local result, err = jp.query(array, '$[?(@.value>=true)]')
+        lu.assertNil(err)
+        lu.assertItemsEquals(result, { array[2], array[3] })
+
+        local result, err = jp.query(array, '$[?(@.value<true)]')
+        lu.assertNil(err)
+        lu.assertItemsEquals(result, { array[1] })
+
+        local result, err = jp.query(array, '$[?(@.value<=true)]')
+        lu.assertNil(err)
+        lu.assertItemsEquals(result, { array[1], array[2] })
+    end,
+
+    testFilterBoolIntComparison = function ()
+        local array = {
+            { id = 1, value = true },
+            { id = 2, value = false },
+        }
+        local result, err = jp.query(array, '$[?(@.value==1)]')
+        lu.assertNil(err)
+        lu.assertItemsEquals(result, { array[1] })
+
+        local result, err = jp.query(array, '$[?(@.value>1)]')
+        lu.assertNil(err)
+        lu.assertItemsEquals(result, {})
+
+        local result, err = jp.query(array, '$[?(@.value>=1)]')
+        lu.assertNil(err)
+        lu.assertItemsEquals(result, {})
+
+        local result, err = jp.query(array, '$[?(@.value<1)]')
+        lu.assertNil(err)
+        lu.assertItemsEquals(result, {})
+
+        local result, err = jp.query(array, '$[?(@.value<=1)]')
+        lu.assertNil(err)
+        lu.assertItemsEquals(result, {})
+    end,
+    
+    testFilterBoolStrComparison = function ()
+        local array = {
+            { id = 1, value = true },
+            { id = 2, value = false },
+        }
+        local result, err = jp.query(array, '$[?(@.value=="1")]')
+        lu.assertNil(err)
+        lu.assertItemsEquals(result, {})
+
+        local result, err = jp.query(array, '$[?(@.value>"1")]')
+        lu.assertNil(err)
+        lu.assertItemsEquals(result, {})
+
+        local result, err = jp.query(array, '$[?(@.value>="1")]')
+        lu.assertNil(err)
+        lu.assertItemsEquals(result, {})
+
+        local result, err = jp.query(array, '$[?(@.value<"1")]')
+        lu.assertNil(err)
+        lu.assertItemsEquals(result, {})
+
+        local result, err = jp.query(array, '$[?(@.value<="1")]')
+        lu.assertNil(err)
+        lu.assertItemsEquals(result, {})
+    end,
+
+    testFilterArithmeticOpOnBool = function ()
+        local array = {
+            { id = 1, value = 0 },
+            { id = 1, value = 1 },
+            { id = 2, value = 2 },
+        }
+        local result, err = jp.query(array, '$[?(@.value==true+1)]')
+        lu.assertNil(err)
+        lu.assertItemsEquals(result, {})
+
+        local result, err = jp.query(array, '$[?(@.value==true*1)]')
+        lu.assertNil(err)
+        lu.assertItemsEquals(result, {})
+
+        local result, err = jp.query(array, '$[?(@.value==true/1)]')
+        lu.assertNil(err)
+        lu.assertItemsEquals(result, {})
+
+        local result, err = jp.query(array, '$[?(@.value==true%1)]')
+        lu.assertNil(err)
+        lu.assertItemsEquals(result, {})
+
+        local result, err = jp.query(array, '$[?(@.value<>false+1)]')
+        lu.assertNil(err)
+        lu.assertItemsEquals(result, {})
+    end,
 }
 
 
