@@ -297,6 +297,24 @@ local jsonpath_grammer = (function()
     return jsonpath
 end)()
 
+local function bad_request_error(err)
+    local err = JsonPathError:new(err)
+    err.rc = codes.BAD_REQUEST
+    return err
+end
+
+local function not_found_error(err)
+    local err = JsonPathNotFoundError:new(err)
+    err.rc = codes.NOT_FOUND
+    return err
+end
+
+local function internal_error(err)
+    local err = JsonPathNotFoundError:new(err)
+    err.rc = codes.INTERNAL_ERR
+    return err
+end
+
 --- @alias Operator 1|2|3|4|5|6|7|8|9|10|11|12|13
 --- @alias OperatorType 1|2|3|4
 
@@ -451,18 +469,19 @@ local function exec_binary_op(op, lval, rval, op_str)
         if l_type == "string" then
             lval = tonumber(lval)
             if lval == nil then
-                return nil, ("can not parse string lvalue as number for operation %s"):format(op_str)
+                return nil, bad_request_error(("can not parse string lvalue as number for operation %s"):format(op_str))
             end
         elseif l_type ~= "number" then
-            return nil, ("lvalue is not a number for operation %s"):format(op_str)
+            return nil, bad_request_error(("lvalue is not a number for operation %s"):format(op_str))
         end
         if r_type == "string" then
             rval = tonumber(rval)
             if rval == nil then
-                return nil, ("can not parse string rvalue as number for operation %s"):format(op_str)
+                return nil,
+                    bad_request_error(("can not parse string rvalue as number for operation %s"):format(op_str))
             end
         elseif r_type ~= "number" then
-                return nil, ("rvalue is not a number for operation %s"):format(op_str)
+                return nil, bad_request_error(("rvalue is not a number for operation %s"):format(op_str))
         end
     elseif op_type == OPERATOR_TYPES.LOGICAL then
         -- everything which is not null is a true boolean
@@ -550,10 +569,10 @@ local function exec_binary_op(op, lval, rval, op_str)
 
         -- must be the same type
         if l_type ~= r_type then
-            return nil, ("can not apply %s on types %s and %s"):format(op_str, l_type, r_type)
+            return nil, bad_request_error(("can not apply %s on types %s and %s"):format(op_str, l_type, r_type))
         end
     else
-        return nil, ("unknown operator %s"):format(op_str)
+        return nil, bad_request_error(("unknown operator %s"):format(op_str))
     end
 
     return OPERATORS_FN[op](lval, rval), nil
@@ -667,7 +686,7 @@ local function eval_ast(ast, obj)
         for i = 3, #expr, 2 do
             local op_str = expr[i]
             if op_str == nil then
-                return nil, 'missing expression operator'
+                return nil, bad_request_error('missing expression operator')
             end
             local op2, eval_err = eval_ast(expr[i + 1], obj)
             if is_nil(op2) then
@@ -675,7 +694,7 @@ local function eval_ast(ast, obj)
             end
             local op = parse_operator(op_str)
             if op == 0 then
-                return nil, "unknown operator"
+                return nil, bad_request_error("unknown operator")
             end
             --- @cast op Operator
             local result, cast_err = exec_binary_op(op, op1, op2, op_str)
@@ -905,16 +924,13 @@ end
 --
 function M.nodes(obj, expr, count)
     if obj == nil or type(obj) ~= 'table' then
-        local err = bad_request_error("missing or invalid 'obj' argument")
-        return nil, err
+        return nil, bad_request_error("missing or invalid 'obj' argument")
     end
     if expr == nil or (type(expr) ~= 'string' and type(expr) ~= 'table') then
-        local err = bad_request_error("missing or invalid 'expr' argument")
-        return nil, err
+        return nil, bad_request_error("missing or invalid 'expr' argument")
     end
     if count ~= nil and type(count) ~= 'number' then
-        local err = bad_request_error("invalid 'count' argument")
-        return nil, err
+        return nil, bad_request_error("invalid 'count' argument")
     end
 
     local ast, err
@@ -927,8 +943,7 @@ function M.nodes(obj, expr, count)
     end
     if ast == nil then
         if not err then
-            local err = JsonPathError:new("internal error")
-            err.rc = codes.INTERNAL_ERR
+            err = internal_error("internal error")
         end
         return nil, err
     end
@@ -1002,8 +1017,7 @@ function M.value(obj, expr, count)
         return nodes[1].value
     end
 
-    local err = bad_request_error('no element matching expression')
-    return nil, err
+    return nil, bad_request_error('no element matching expression')
 end
 
 

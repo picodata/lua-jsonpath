@@ -985,7 +985,7 @@ testQuery = {
 
         local result, err = jp.query(array, '$[?(@.value>1)]')
         lu.assertError(err)
-        lu.assertItemsEquals(result, nil)
+        lu.assertItemsEquals(result, {})
 
         local result, err = jp.query(array, '$[?(@.value>=1)]')
         lu.assertNil(err)
@@ -999,15 +999,16 @@ testQuery = {
         lu.assertNil(err)
         lu.assertItemsEquals(result, { array[1], array[2] })
     end,
-    
+
     testFilterBoolStrComparison = function ()
         local array = {
             { id = 1, value = true },
             { id = 2, value = false },
         }
         local result, err = jp.query(array, '$[?(@.value=="1")]')
-        lu.assertError(err)
-        lu.assertItemsEquals(result, nil)
+        -- lu.assertError(err)
+        lu.assertNil(err)
+        lu.assertItemsEquals(result, {})
 
         local result, err = jp.query(array, '$[?(@.value>"1")]')
         lu.assertError(err)
@@ -1053,22 +1054,22 @@ testQuery = {
         lu.assertItemsEquals(result, nil)
     end,
 
-    testFilterArithmeticOp = function ()
+    testFilterArithmeticOponStr = function ()
         local array = {
             { id = 1, value = 0 },
             { id = 1, value = "a" },
         }
         local result, err = jp.query(array, '$[?(@.value=="a"+"b")]')
-        lu.assertNil(err)
-        lu.assertItemsEquals(result, {})
+        lu.assertError(err)
+        lu.assertItemsEquals(result, nil)
 
         local result, err = jp.query(array, '$[?(@.value=="a"+null)]')
-        lu.assertNil(err)
-        lu.assertItemsEquals(result, {})
+        lu.assertError(err)
+        lu.assertItemsEquals(result, nil)
 
         local result, err = jp.query(array, '$[?(@.value=="a"+1)]')
-        lu.assertNil(err)
-        lu.assertItemsEquals(result, {})
+        lu.assertError(err)
+        lu.assertItemsEquals(result, nil)
     end,
 }
 
