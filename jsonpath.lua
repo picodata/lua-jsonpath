@@ -101,7 +101,6 @@
 local M = {}
 
 local codes = {
-    SUCCESS = 200,
     BAD_REQUEST = 400,
     NOT_FOUND = 404,
     INTERNAL_ERR = 500,
@@ -298,9 +297,15 @@ local jsonpath_grammer = (function()
     return jsonpath
 end)()
 
-local function Bad_request_error(err)
+local function bad_request_error(err)
     local err = JsonPathError:new(err)
-        err.rc = codes.BAD_REQUEST
+    err.rc = codes.BAD_REQUEST
+    return err
+end
+
+local function not_found_error(err)
+    local err = JsonPathNotFoundError:new(err)
+    err.rc = codes.NOT_FOUND
     return err
 end
 
@@ -314,17 +319,17 @@ local function eval_ast(ast, obj)
                 return not op1, nil
             else
                 if type(op2) == 'string' then
-                    return nil, Bad_request_error("cannot compare boolean with string")
+                    return nil, bad_request_error("cannot compare boolean with string")
                 end
                 if type(op2) == 'number' then
                     if compare then
-                        return nil, Bad_request_error("cannot compare boolean with number")
+                        return nil, bad_request_error("cannot compare boolean with number")
                     end
                     return op2 ~= 0, nil
                 end
                 if type(op2) == 'boolean' then
                     if compare then
-                        return nil,  Bad_request_error("cannot compare boolean with boolean")
+                        return nil,  bad_request_error("cannot compare boolean with boolean")
                     end
                     return op2, nil
                 end
@@ -337,7 +342,7 @@ local function eval_ast(ast, obj)
             if type(op2) == 'string' then
                 local num = tonumber(op2)
                 if num == nil then
-                    return nil, Bad_request_error("cannot compare number with non-numeric string")
+                    return nil, bad_request_error("cannot compare number with non-numeric string")
                 end
                 return num, nil
             end
@@ -346,7 +351,7 @@ local function eval_ast(ast, obj)
             return tonumber(op2), nil
         elseif is_null(op1) then
             if compare then
-                return nil, Bad_request_error("cannot compare null with other values")
+                return nil, bad_request_error("cannot compare null with other values")
             end
             return op2, nil
         end
@@ -367,12 +372,10 @@ local function eval_ast(ast, obj)
     -- Helper helper: evaluate variable expression inside abstract syntax tree
     local function eval_var(expr, obj)
         if obj == nil then
-            return nil, Bad_request_error('object is not set')
+            return nil, bad_request_error('object is not set')
         end
         if type(obj) ~= "table" then
-            local err = JsonPathNotFoundError:new('object is primitive')
-            err.rc = codes.NOT_FOUND
-            return nil, err
+            return nil, not_found_error('object is primitive')
         end
         for i = 2, #expr do
             -- [1] is "var"
@@ -383,9 +386,7 @@ local function eval_ast(ast, obj)
             member = type(member) == 'number' and member + 1 or member
             obj = obj[member]
             if is_nil(obj) then
-                local err = JsonPathNotFoundError:new('object doesn\'t contain an object or attribute "'.. member ..'"')
-                err.rc = codes.NOT_FOUND
-                return nil, err
+                return nil, not_found_error('object doesn\'t contain an object or attribute "'.. member ..'"')
             end
         end
         return obj
@@ -473,7 +474,7 @@ local function eval_ast(ast, obj)
         for i = 3, #expr, 2 do
             local operator = expr[i]
             if operator == nil then
-                local err = Bad_request_error('missing expression operator')
+                local err = bad_request_error('missing expression operator')
                 return nil, err
             end
             local op2, err = eval_ast(expr[i + 1], obj)
@@ -488,7 +489,7 @@ local function eval_ast(ast, obj)
                     end
                     op1 = num1 + num2
                 else
-                    return nil, Bad_request_error("Only operations on strings and numbers are allowed.")
+                    return nil, bad_request_error("Only operations on strings and numbers are allowed.")
                 end
             elseif operator == '-' then
                 if is_str_or_int(op1) and is_str_or_int(op2) then
@@ -498,7 +499,7 @@ local function eval_ast(ast, obj)
                     end
                     op1 = num1 - num2
                 else
-                    return nil, Bad_request_error("Only operations on strings and numbers are allowed.")
+                    return nil, bad_request_error("Only operations on strings and numbers are allowed.")
                 end
             elseif operator == '*' then
                 if is_str_or_int(op1) and is_str_or_int(op2) then
@@ -508,7 +509,7 @@ local function eval_ast(ast, obj)
                     end
                     op1 = num1 * num2
                 else
-                    return nil, Bad_request_error("Only operations on strings and numbers are allowed.")
+                    return nil, bad_request_error("Only operations on strings and numbers are allowed.")
                 end
             elseif operator == '/' then
                 if is_str_or_int(op1) and is_str_or_int(op2) then
@@ -518,7 +519,7 @@ local function eval_ast(ast, obj)
                     end
                     op1 = num1 / num2
                 else
-                    return nil, Bad_request_error("Only operations on strings and numbers are allowed.")
+                    return nil, bad_request_error("Only operations on strings and numbers are allowed.")
                 end
             elseif operator == '%' then
                 if is_str_or_int(op1) and is_str_or_int(op2) then
@@ -528,7 +529,7 @@ local function eval_ast(ast, obj)
                     end
                     op1 = num1 % num2
                 else
-                    return nil, Bad_request_error("Only operations on strings and numbers are allowed.")
+                    return nil, bad_request_error("Only operations on strings and numbers are allowed.")
                 end
             elseif operator:upper() == 'AND' or operator == '&&' then
                 op1 = notempty(op1) and notempty(op2)
@@ -571,7 +572,7 @@ local function eval_ast(ast, obj)
                 end
                 op1 = op1 <= op2
             else
-                return nil, Bad_request_error('unknown expression operator "' .. operator .. '"')
+                return nil, bad_request_error('unknown expression operator "' .. operator .. '"')
             end
         end
         return op1
@@ -763,15 +764,15 @@ end
 --
 function M.parse(expr)
     if expr == nil or type(expr) ~= 'string' then
-        return nil, Bad_request_error("missing or invalid 'expr' argument")
+        return nil, bad_request_error("missing or invalid 'expr' argument")
     end
 
     local ast = Ct(jsonpath_grammer * Cp()):match(expr)
     if ast == nil or #ast ~= 2 then
-        return nil, Bad_request_error('invalid expression "' .. expr .. '"')
+        return nil, bad_request_error('invalid expression "' .. expr .. '"')
     end
     if ast[2] ~= #expr + 1 then
-        return nil, Bad_request_error('invalid expression "' .. expr .. '" near "' .. expr:sub(ast[2]) .. '"')
+        return nil, bad_request_error('invalid expression "' .. expr .. '" near "' .. expr:sub(ast[2]) .. '"')
     end
     return ast[1]
 end
@@ -795,15 +796,15 @@ end
 --
 function M.nodes(obj, expr, count)
     if obj == nil or type(obj) ~= 'table' then
-        local err = Bad_request_error("missing or invalid 'obj' argument")
+        local err = bad_request_error("missing or invalid 'obj' argument")
         return nil, err
     end
     if expr == nil or (type(expr) ~= 'string' and type(expr) ~= 'table') then
-        local err = Bad_request_error("missing or invalid 'expr' argument")
+        local err = bad_request_error("missing or invalid 'expr' argument")
         return nil, err
     end
     if count ~= nil and type(count) ~= 'number' then
-        local err = Bad_request_error("invalid 'count' argument")
+        local err = bad_request_error("invalid 'count' argument")
         return nil, err
     end
 
@@ -892,7 +893,7 @@ function M.value(obj, expr, count)
         return nodes[1].value
     end
 
-    local err = Bad_request_error('no element matching expression')
+    local err = bad_request_error('no element matching expression')
     return nil, err
 end
 
