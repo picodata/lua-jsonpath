@@ -1052,6 +1052,24 @@ testQuery = {
         lu.assertNil(err)
         lu.assertItemsEquals(result, {})
     end,
+
+    testFilterArithmeticOp = function ()
+        local array = {
+            { id = 1, value = 0 },
+            { id = 1, value = "a" },
+        }
+        local result, err = jp.query(array, '$[?(@.value=="a"+"b")]')
+        lu.assertNil(err)
+        lu.assertItemsEquals(result, {})
+
+        local result, err = jp.query(array, '$[?(@.value=="a"+null)]')
+        lu.assertNil(err)
+        lu.assertItemsEquals(result, {})
+
+        local result, err = jp.query(array, '$[?(@.value=="a"+1)]')
+        lu.assertNil(err)
+        lu.assertItemsEquals(result, {})
+    end,
 }
 
 
