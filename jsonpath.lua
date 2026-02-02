@@ -101,7 +101,6 @@
 local M = {}
 
 local codes = {
-    SUCCESS = 200,
     BAD_REQUEST = 400,
     NOT_FOUND = 404,
     INTERNAL_ERR = 500,
@@ -566,12 +565,10 @@ local function eval_ast(ast, obj)
     -- Helper helper: evaluate variable expression inside abstract syntax tree
     local function eval_var(expr, obj)
         if obj == nil then
-            return nil, Bad_request_error('object is not set')
+            return nil, bad_request_error('object is not set')
         end
         if type(obj) ~= "table" then
-            local err = JsonPathNotFoundError:new('object is primitive')
-            err.rc = codes.NOT_FOUND
-            return nil, err
+            return nil, not_found_error('object is primitive')
         end
         for i = 2, #expr do
             -- [1] is "var"
@@ -582,9 +579,7 @@ local function eval_ast(ast, obj)
             member = type(member) == 'number' and member + 1 or member
             obj = obj[member]
             if is_nil(obj) then
-                local err = JsonPathNotFoundError:new('object doesn\'t contain an object or attribute "'.. member ..'"')
-                err.rc = codes.NOT_FOUND
-                return nil, err
+                return nil, not_found_error('object doesn\'t contain an object or attribute "'.. member ..'"')
             end
         end
         return obj
@@ -878,15 +873,15 @@ end
 --
 function M.parse(expr)
     if expr == nil or type(expr) ~= 'string' then
-        return nil, Bad_request_error("missing or invalid 'expr' argument")
+        return nil, bad_request_error("missing or invalid 'expr' argument")
     end
 
     local ast = Ct(jsonpath_grammer * Cp()):match(expr)
     if ast == nil or #ast ~= 2 then
-        return nil, Bad_request_error('invalid expression "' .. expr .. '"')
+        return nil, bad_request_error('invalid expression "' .. expr .. '"')
     end
     if ast[2] ~= #expr + 1 then
-        return nil, Bad_request_error('invalid expression "' .. expr .. '" near "' .. expr:sub(ast[2]) .. '"')
+        return nil, bad_request_error('invalid expression "' .. expr .. '" near "' .. expr:sub(ast[2]) .. '"')
     end
     return ast[1]
 end
@@ -910,15 +905,15 @@ end
 --
 function M.nodes(obj, expr, count)
     if obj == nil or type(obj) ~= 'table' then
-        local err = Bad_request_error("missing or invalid 'obj' argument")
+        local err = bad_request_error("missing or invalid 'obj' argument")
         return nil, err
     end
     if expr == nil or (type(expr) ~= 'string' and type(expr) ~= 'table') then
-        local err = Bad_request_error("missing or invalid 'expr' argument")
+        local err = bad_request_error("missing or invalid 'expr' argument")
         return nil, err
     end
     if count ~= nil and type(count) ~= 'number' then
-        local err = Bad_request_error("invalid 'count' argument")
+        local err = bad_request_error("invalid 'count' argument")
         return nil, err
     end
 
@@ -1007,7 +1002,7 @@ function M.value(obj, expr, count)
         return nodes[1].value
     end
 
-    local err = Bad_request_error('no element matching expression')
+    local err = bad_request_error('no element matching expression')
     return nil, err
 end
 
