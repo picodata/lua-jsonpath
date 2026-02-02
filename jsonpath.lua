@@ -291,7 +291,7 @@ end)()
 local function eval_ast(ast, obj)
 
     -- Helper helper: match type of second operand to type of first operand
-        local function match_cmp_type(op1, op2, compare)
+    local function match_cmp_type(op1, op2, compare)
         if type(op1) == 'boolean' then
             if is_null(op2) then
                 return not op1, nil
@@ -439,35 +439,54 @@ local function eval_ast(ast, obj)
             end
             if operator == '+' then
                 if is_str_or_int(op1) and is_str_or_int(op2) then
-                    op1 = tonumber(op1) + tonumber(op2)
+                    local num1, num2 = tonumber(op1), tonumber(op2)
+                    if not (num1 and num2) then
+                        return nil, "Cannot perform arithmetic on non-numeric strings"
+                    end
+                    op1 = num1 + num2
                 else
                     return nil, "Only operations on strings and numbers are allowed."
                 end
             elseif operator == '-' then
                 if is_str_or_int(op1) and is_str_or_int(op2) then
-                    op1 = tonumber(op1) - tonumber(op2)
+                    local num1, num2 = tonumber(op1), tonumber(op2)
+                    if not (num1 and num2) then
+                        return nil, "Cannot perform arithmetic on non-numeric strings"
+                    end
+                    op1 = num1 - num2
                 else
                     return nil, "Only operations on strings and numbers are allowed."
                 end
             elseif operator == '*' then
                 if is_str_or_int(op1) and is_str_or_int(op2) then
-                    op1 = tonumber(op1) * tonumber(op2)
+                    local num1, num2 = tonumber(op1), tonumber(op2)
+                    if not (num1 and num2) then
+                        return nil, "Cannot perform arithmetic on non-numeric strings"
+                    end
+                    op1 = num1 * num2
                 else
                     return nil, "Only operations on strings and numbers are allowed."
                 end
             elseif operator == '/' then
                 if is_str_or_int(op1) and is_str_or_int(op2) then
-                    op1 = tonumber(op1) / tonumber(op2)
+                    local num1, num2 = tonumber(op1), tonumber(op2)
+                    if not (num1 and num2) then
+                        return nil, "Cannot perform arithmetic on non-numeric strings"
+                    end
+                    op1 = num1 / num2
                 else
                     return nil, "Only operations on strings and numbers are allowed."
                 end
             elseif operator == '%' then
                 if is_str_or_int(op1) and is_str_or_int(op2) then
-                    op1 = tonumber(op1) % tonumber(op2)
+                    local num1, num2 = tonumber(op1), tonumber(op2)
+                    if not (num1 and num2) then
+                        return nil, "Cannot perform arithmetic on non-numeric strings"
+                    end
+                    op1 = num1 % num2
                 else
                     return nil, "Only operations on strings and numbers are allowed."
                 end
-                op1 = tonumber(op1) % tonumber(op2)
             elseif operator:upper() == 'AND' or operator == '&&' then
                 op1 = notempty(op1) and notempty(op2)
             elseif operator:upper() == 'OR' or operator == '||' then
