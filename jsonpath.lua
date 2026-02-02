@@ -309,6 +309,12 @@ local function not_found_error(err)
     return err
 end
 
+local function internal_error(err)
+    local err = JsonPathNotFoundError:new(err)
+    err.rc = codes.INTERNAL_ERR
+    return err
+end
+
 -- Helper: evaluate abstract syntax tree. Called recursively.
 local function eval_ast(ast, obj)
 
@@ -485,7 +491,7 @@ local function eval_ast(ast, obj)
                 if is_str_or_int(op1) and is_str_or_int(op2) then
                     local num1, num2 = tonumber(op1), tonumber(op2)
                     if not (num1 and num2) then
-                        return nil, "Cannot perform arithmetic on non-numeric strings"
+                        return nil, bad_request_error("Cannot perform arithmetic on non-numeric strings")
                     end
                     op1 = num1 + num2
                 else
@@ -495,7 +501,7 @@ local function eval_ast(ast, obj)
                 if is_str_or_int(op1) and is_str_or_int(op2) then
                     local num1, num2 = tonumber(op1), tonumber(op2)
                     if not (num1 and num2) then
-                        return nil, "Cannot perform arithmetic on non-numeric strings"
+                        return nil, bad_request_error("Cannot perform arithmetic on non-numeric strings")
                     end
                     op1 = num1 - num2
                 else
@@ -505,7 +511,7 @@ local function eval_ast(ast, obj)
                 if is_str_or_int(op1) and is_str_or_int(op2) then
                     local num1, num2 = tonumber(op1), tonumber(op2)
                     if not (num1 and num2) then
-                        return nil, "Cannot perform arithmetic on non-numeric strings"
+                        return nil, bad_request_error("Cannot perform arithmetic on non-numeric strings")
                     end
                     op1 = num1 * num2
                 else
@@ -515,7 +521,7 @@ local function eval_ast(ast, obj)
                 if is_str_or_int(op1) and is_str_or_int(op2) then
                     local num1, num2 = tonumber(op1), tonumber(op2)
                     if not (num1 and num2) then
-                        return nil, "Cannot perform arithmetic on non-numeric strings"
+                        return nil, bad_request_error("Cannot perform arithmetic on non-numeric strings")
                     end
                     op1 = num1 / num2
                 else
@@ -525,7 +531,7 @@ local function eval_ast(ast, obj)
                 if is_str_or_int(op1) and is_str_or_int(op2) then
                     local num1, num2 = tonumber(op1), tonumber(op2)
                     if not (num1 and num2) then
-                        return nil, "Cannot perform arithmetic on non-numeric strings"
+                        return nil, bad_request_error("Cannot perform arithmetic on non-numeric strings")
                     end
                     op1 = num1 % num2
                 else
@@ -818,8 +824,7 @@ function M.nodes(obj, expr, count)
     end
     if ast == nil then
         if not err then
-            local err = JsonPathError:new("internal error")
-            err.rc = codes.INTERNAL_ERR
+            err = internal_error("internal error")
         end
         return nil, err
     end
