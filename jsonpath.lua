@@ -286,63 +286,270 @@ local jsonpath_grammer = (function()
     return jsonpath
 end)()
 
+--- @alias Operator 1|2|3|4|5|6|7|8|9|10|11|12|13
+--- @alias OperatorType 1|2|3|4
+
+--- @type Operator[]
+local OPERATORS = {
+    --- Arithmetic operators
+    ADD = 1,
+    SUB = 2,
+    MUL = 3,
+    DIV = 4,
+    MOD = 5,
+    --- Logical operators
+    AND = 6,
+    OR = 7,
+    --- Equality
+    EQ = 8,
+    NEQ = 9,
+    --- Comparison
+    GT = 10,
+    GTE = 11,
+    LT = 12,
+    LTE = 13,
+}
+
+local OPERATOR_TYPES = {
+    ARITHMETIC = 1,
+    LOGICAL = 2,
+    EQUALITY = 3,
+    COMPARISON = 4,
+}
+
+--- @param op Operator|number
+--- @return OperatorType|0 op_type
+local function get_operator_type(op)
+    if op >= 1 and op <= 5 then
+        return OPERATOR_TYPES.ARITHMETIC
+    elseif op == 6 or op == 7 then
+        return OPERATOR_TYPES.LOGICAL
+    elseif op == 8 or op == 9 then
+        return OPERATOR_TYPES.EQUALITY
+    elseif op >= 10 and op <= 13 then
+        return OPERATOR_TYPES.COMPARISON
+    end
+    return 0
+end
+
+--- @type { [Operator]: fun(any,any): any }
+local OPERATORS_FN = {
+    --- Arithmetic
+    function(l, r)
+        return l + r
+    end,
+    function(l, r)
+        return l - r
+    end,
+    function(l, r)
+        return l * r
+    end,
+    function(l, r)
+        return l / r
+    end,
+    function(l, r)
+        return l % r
+    end,
+    --- Logic (boolean operands only)
+    function(l, r)
+        return l and r
+    end,
+    function(l, r)
+        return l or r
+    end,
+    --- Eq
+    function (l, r)
+        return l == r
+    end,
+    function (l, r)
+        return l ~= r
+    end,
+    --- Cmp
+    function (l, r)
+        return l > r
+    end,
+    function (l, r)
+        return l >= r
+    end,
+    function (l, r)
+        return l < r
+    end,
+    function (l, r)
+        return l <= r
+    end,
+}
+
+--- @return Operator | 0
+local function parse_operator(op)
+    if op == '+' then
+        return OPERATORS.ADD
+    elseif op == '-' then
+        return OPERATORS.SUB
+    elseif op == '*' then
+        return OPERATORS.MUL
+    elseif op == '/' then
+        return OPERATORS.DIV
+    elseif op == '%' then
+        return OPERATORS.MOD
+    elseif op:upper() == 'AND' or op == '&&' then
+        return OPERATORS.AND
+    elseif op:upper() == 'OR' or op == '||' then
+        return OPERATORS.OR
+    elseif op == '=' or op == '==' then
+        return OPERATORS.EQ
+    elseif op == '<>' or op == '!=' then
+        return OPERATORS.NEQ
+    elseif op == '>' then
+        return OPERATORS.GT
+    elseif op == '>=' then
+        return OPERATORS.GTE
+    elseif op == '<' then
+        return OPERATORS.LT
+    elseif op == '<=' then
+        return OPERATORS.LTE
+    else
+        return 0
+    end
+end
+
+--- Computes type casts and executes binary operator
+---
+--- @param op Operator Operator to execute
+--- @param lval any Left value of binary operator
+--- @param rval any Right value of binary operator
+--- @param op_str string String representation of operator, used in error reporting
+--- @return any|nil val Result value
+--- @return nil|string err Error, if cast has failed
+local function exec_binary_op(op, lval, rval, op_str)
+    local l_type = type(lval)
+    local r_type = type(rval)
+    local op_type = get_operator_type(op)
+
+    -- convert these long int numbers to normal numbers
+    if l_type == 'cdata' and lval ~= NULL and tostring(ffi.typeof(lval)) == 'ctype<int64_t>' then
+        l_type = "number"
+        lval = tonumber(lval)
+    end
+    if r_type == 'cdata' and lval ~= NULL and tostring(ffi.typeof(rval)) == 'ctype<int64_t>' then
+        r_type = "number"
+        rval = tonumber(rval)
+    end
+
+    if op_type == OPERATOR_TYPES.ARITHMETIC then
+        -- arithmetic ops allowed only on numbers
+        if l_type == "string" then
+            lval = tonumber(lval)
+            if lval == nil then
+                return nil, ("can not parse string lvalue as number for operation %s"):format(op_str)
+            end
+        elseif l_type ~= "number" then
+            return nil, ("lvalue is not a number for operation %s"):format(op_str)
+        end
+        if r_type == "string" then
+            rval = tonumber(rval)
+            if rval == nil then
+                return nil, ("can not parse string rvalue as number for operation %s"):format(op_str)
+            end
+        elseif r_type ~= "number" then
+                return nil, ("rvalue is not a number for operation %s"):format(op_str)
+        end
+    elseif op_type == OPERATOR_TYPES.LOGICAL then
+        -- everything which is not null is a true boolean
+        if l_type ~= "boolean" then
+            lval = not is_null(lval)
+        end
+        if r_type ~= "boolean" then
+            rval = not is_null(rval)
+        end
+    elseif op_type == OPERATOR_TYPES.EQUALITY then
+        -- cast numbers and booleans to string, if other operand is string
+        if l_type == "string" and r_type == "number" then
+            r_type = "string"
+            rval = tostring(rval)
+        elseif l_type == "string" and r_type == "boolean" then
+            r_type = "string"
+            rval = tostring(rval)
+        end
+        if r_type == "string" and l_type == "number" then
+            l_type = "string"
+            lval = tostring(lval)
+        elseif r_type == "string" and l_type == "boolean" then
+            l_type = "string"
+            lval = tostring(lval)
+        end
+
+        -- cast booleans as numbers
+        if l_type == "number" and r_type == "boolean" then
+            r_type = "number"
+            rval = rval and 1 or 0
+        end
+        if r_type == "number" and l_type == "boolean" then
+            l_type = "number"
+            lval = lval and 1 or 0
+        end
+
+        -- special comparisons when lvalue or rvalue is null
+        local lval_is_null, rval_is_null = is_null(lval), is_null(rval)
+        if lval_is_null and rval_is_null then
+            -- null == null -> true
+            return op == OPERATORS.EQ
+        end
+        if rval_is_null or lval_is_null then
+            -- something == null -> false
+            -- something != null -> true
+            -- null == something -> false
+            -- null != something -> true
+            return not (op == OPERATORS.EQ)
+        end
+
+        -- bypass default operator functions for non-matching types
+        if l_type ~= r_type and op == OPERATORS.EQ then
+            -- values of different types are never equal
+            return false, nil
+        elseif l_type ~= r_type and op == OPERATORS.NEQ then
+            -- values of different types are always not equal
+            return true, nil
+        end
+    elseif op_type == OPERATOR_TYPES.COMPARISON then
+        -- allow to compare numbers with booleans
+        if l_type == "number" and r_type == "boolean" then
+            r_type = "number"
+            rval = rval and 1 or 0
+        end
+        if r_type == "number" and l_type == "boolean" then
+            l_type = "number"
+            lval = lval and 1 or 0
+        end
+
+        -- try to parse string as number, if other operand is number
+        if l_type == "number" and r_type == "string" then
+            local num_rval = tonumber(rval)
+            if num_rval ~= nil then
+                r_type = "number"
+                rval = num_rval
+            end
+        end
+        if r_type == "number" and l_type == "string" then
+            local num_lval = tonumber(lval)
+            if num_lval ~= nil then
+                l_type = "number"
+                lval = num_lval
+            end
+        end
+
+        -- must be the same type
+        if l_type ~= r_type then
+            return nil, ("can not apply %s on types %s and %s"):format(op_str, l_type, r_type)
+        end
+    else
+        return nil, ("unknown operator %s"):format(op_str)
+    end
+
+    return OPERATORS_FN[op](lval, rval), nil
+end
 
 -- Helper: evaluate abstract syntax tree. Called recursively.
 local function eval_ast(ast, obj)
-
-    -- Helper helper: match type of second operand to type of first operand
-    local function match_cmp_type(op1, op2, compare)
-        if type(op1) == 'boolean' then
-            if is_null(op2) then
-                return not op1, nil
-            else
-                if type(op2) == 'string' then
-                    return nil, "cannot compare boolean with string"
-                end
-                if type(op2) == 'number' then
-                    if compare then
-                        return nil, "cannot compare boolean with number"
-                    end
-                    return op2 ~= 0, nil
-                end
-                if type(op2) == 'boolean' then
-                    return op2, nil
-                end
-                return (op2 and true or false), nil
-            end
-        elseif type(op1) == 'number' then
-            if type(op2) == 'boolean' then
-                return op2 and 1 or 0, nil
-            end
-            if type(op2) == 'string' then
-                local num = tonumber(op2)
-                if num == nil then
-                    return nil, "cannot compare number with non-numeric string"
-                end
-                return num, nil
-            end
-            return tonumber(op2), nil
-        elseif type(op1) == 'cdata' and tostring(ffi.typeof(op1)) == 'ctype<int64_t>' then
-            return tonumber(op2), nil
-        elseif is_null(op1) then
-            if compare then
-                return nil, "cannot compare null with other values"
-            end
-            return op2, nil
-        end
-        return tostring(op2 or ''), nil
-    end
-
-    -- Helper helper: convert operand to boolean
-    local function notempty(op1)
-        return op1 and true or false
-    end
-
-    local function is_str_or_int(val)
-        return type(val) == 'string' or
-        type(val) == 'number' or
-        (type(val) == 'cdata' and tostring(ffi.typeof(val)) == 'ctype<int64_t>')
-    end
 
     -- Helper helper: evaluate variable expression inside abstract syntax tree
     local function eval_var(expr, obj)
@@ -429,107 +636,24 @@ local function eval_ast(ast, obj)
             return nil, err
         end
         for i = 3, #expr, 2 do
-            local operator = expr[i]
-            if operator == nil then
+            local op_str = expr[i]
+            if op_str == nil then
                 return nil, 'missing expression operator'
             end
-            local op2, err = eval_ast(expr[i + 1], obj)
+            local op2, eval_err = eval_ast(expr[i + 1], obj)
             if is_nil(op2) then
-                return nil, err
+                return nil, eval_err
             end
-            if operator == '+' then
-                if is_str_or_int(op1) and is_str_or_int(op2) then
-                    local num1, num2 = tonumber(op1), tonumber(op2)
-                    if not (num1 and num2) then
-                        return nil, "Cannot perform arithmetic on non-numeric strings"
-                    end
-                    op1 = num1 + num2
-                else
-                    return nil, "Only operations on strings and numbers are allowed."
-                end
-            elseif operator == '-' then
-                if is_str_or_int(op1) and is_str_or_int(op2) then
-                    local num1, num2 = tonumber(op1), tonumber(op2)
-                    if not (num1 and num2) then
-                        return nil, "Cannot perform arithmetic on non-numeric strings"
-                    end
-                    op1 = num1 - num2
-                else
-                    return nil, "Only operations on strings and numbers are allowed."
-                end
-            elseif operator == '*' then
-                if is_str_or_int(op1) and is_str_or_int(op2) then
-                    local num1, num2 = tonumber(op1), tonumber(op2)
-                    if not (num1 and num2) then
-                        return nil, "Cannot perform arithmetic on non-numeric strings"
-                    end
-                    op1 = num1 * num2
-                else
-                    return nil, "Only operations on strings and numbers are allowed."
-                end
-            elseif operator == '/' then
-                if is_str_or_int(op1) and is_str_or_int(op2) then
-                    local num1, num2 = tonumber(op1), tonumber(op2)
-                    if not (num1 and num2) then
-                        return nil, "Cannot perform arithmetic on non-numeric strings"
-                    end
-                    op1 = num1 / num2
-                else
-                    return nil, "Only operations on strings and numbers are allowed."
-                end
-            elseif operator == '%' then
-                if is_str_or_int(op1) and is_str_or_int(op2) then
-                    local num1, num2 = tonumber(op1), tonumber(op2)
-                    if not (num1 and num2) then
-                        return nil, "Cannot perform arithmetic on non-numeric strings"
-                    end
-                    op1 = num1 % num2
-                else
-                    return nil, "Only operations on strings and numbers are allowed."
-                end
-            elseif operator:upper() == 'AND' or operator == '&&' then
-                op1 = notempty(op1) and notempty(op2)
-            elseif operator:upper() == 'OR' or operator == '||' then
-                op1 = notempty(op1) or notempty(op2)
-            elseif operator == '=' or operator == '==' then
-                local op2, err = match_cmp_type(op1, op2, false)
-                if err then
-                    return nil, err
-                end
-                op1 = op1 == op2
-            elseif operator == '<>' or operator == '!=' then
-                local op2, err = match_cmp_type(op1, op2, false)
-                if err then
-                    return nil, err
-                end
-                op1 = op1 ~= op2
-            elseif operator == '>' then
-                local op2, err = match_cmp_type(op1, op2, true)
-                if err then
-                    return nil, err
-                end
-                op1 = op1 > op2
-            elseif operator == '>=' then
-                local op2, err = match_cmp_type(op1, op2, true)
-                if err then
-                    return nil, err
-                end
-                op1 = op1 >= op2
-            elseif operator == '<' then
-                local op2, err = match_cmp_type(op1, op2, true)
-                if err then
-                    return nil, err
-                end
-                op1 = op1 < op2
-            elseif operator == '<=' then
-                local op2, err = match_cmp_type(op1, op2, true)
-                if err then
-                    return nil, err
-                end
-                op1 = op1 <= op2
-            else
-                return nil, 'unknown expression operator "' .. operator .. '"'
+            local op = parse_operator(op_str)
+            if op == 0 then
+                return nil, "unknown operator"
             end
+            --- @cast op Operator
+            local result, cast_err = exec_binary_op(op, op1, op2, op_str)
+            if cast_err ~= nil then
+                return nil, cast_err
+            end
+            op1 = result
         end
         return op1
     end
