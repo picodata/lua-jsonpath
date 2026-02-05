@@ -989,15 +989,15 @@ testQuery = {
 
         local result, err = jp.query(array, '$[?(@.value>=1)]')
         lu.assertNil(err)
-        lu.assertItemsEquals(result, {})
+        lu.assertItemsEquals(result, { array[1] })
 
         local result, err = jp.query(array, '$[?(@.value<1)]')
         lu.assertNil(err)
-        lu.assertItemsEquals(result, {})
+        lu.assertItemsEquals(result, { array[2] })
 
         local result, err = jp.query(array, '$[?(@.value<=1)]')
         lu.assertNil(err)
-        lu.assertItemsEquals(result, {})
+        lu.assertItemsEquals(result, { array[1], array[2] })
     end,
     
     testFilterBoolStrComparison = function ()
