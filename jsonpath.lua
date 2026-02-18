@@ -101,6 +101,7 @@
 local M = {}
 
 local ffi = require('ffi')
+local errors = require('errors')
 
 -- Use Roberto Ierusalimschy's fabulous LulPeg pattern-matching library
 local lulpeg = require('lulpeg')
@@ -419,7 +420,7 @@ end
 --- @param rval any Right value of binary operator
 --- @param op_str string String representation of operator, used in error reporting
 --- @return any|nil val Result value
---- @return nil|string err Error, if cast has failed
+--- @return nil|table err Error, if cast has failed
 local function exec_binary_op(op, lval, rval, op_str)
     local l_type = type(lval)
     local r_type = type(rval)
@@ -440,18 +441,21 @@ local function exec_binary_op(op, lval, rval, op_str)
         if l_type == "string" then
             lval = tonumber(lval)
             if lval == nil then
-                return nil, ("can not parse string lvalue as number for operation %s"):format(op_str)
+                return nil, errors.bad_request(
+                    ("can not parse string lvalue as number for operation %s"):format(op_str)
+                )
             end
         elseif l_type ~= "number" then
-            return nil, ("lvalue is not a number for operation %s"):format(op_str)
+            return nil, errors.bad_request(("lvalue is not a number for operation %s"):format(op_str))
         end
         if r_type == "string" then
             rval = tonumber(rval)
             if rval == nil then
-                return nil, ("can not parse string rvalue as number for operation %s"):format(op_str)
+                return nil,
+                    errors.bad_request(("can not parse string rvalue as number for operation %s"):format(op_str))
             end
         elseif r_type ~= "number" then
-                return nil, ("rvalue is not a number for operation %s"):format(op_str)
+                return nil, errors.bad_request(("rvalue is not a number for operation %s"):format(op_str))
         end
     elseif op_type == OPERATOR_TYPES.LOGICAL then
         -- everything which is not null is a true boolean
@@ -539,10 +543,10 @@ local function exec_binary_op(op, lval, rval, op_str)
 
         -- must be the same type
         if l_type ~= r_type then
-            return nil, ("can not apply %s on types %s and %s"):format(op_str, l_type, r_type)
+            return nil, errors.bad_request(("can not apply %s on types %s and %s"):format(op_str, l_type, r_type))
         end
     else
-        return nil, ("unknown operator %s"):format(op_str)
+        return nil, errors.bad_request(("unknown operator %s"):format(op_str))
     end
 
     return OPERATORS_FN[op](lval, rval), nil
@@ -554,10 +558,10 @@ local function eval_ast(ast, obj)
     -- Helper helper: evaluate variable expression inside abstract syntax tree
     local function eval_var(expr, obj)
         if obj == nil then
-            return nil, 'object is not set'
+            return nil, errors.not_found('object is not set')
         end
         if type(obj) ~= "table" then
-            return nil, 'object is primitive'
+            return nil, errors.not_found('object is primitive')
         end
         for i = 2, #expr do
             -- [1] is "var"
@@ -568,7 +572,7 @@ local function eval_ast(ast, obj)
             member = type(member) == 'number' and member + 1 or member
             obj = obj[member]
             if is_nil(obj) then
-                return nil, 'object doesn\'t contain an object or attribute "' .. member .. '"'
+                return nil, errors.not_found('object doesn\'t contain an object or attribute "'.. member ..'"')
             end
         end
         return obj
@@ -585,7 +589,10 @@ local function eval_ast(ast, obj)
     local function eval_union(expr, obj)
         local matches = {}  -- [1] is "union"
         for i = 2, #expr do
-            local result = eval_ast(expr[i], obj)
+            local result, err = eval_ast(expr[i], obj)
+            if err then
+                return nil, err
+            end
             if type(result) == 'table' then
                 for _, j in ipairs(result) do
                     table.insert(matches, j)
@@ -599,16 +606,33 @@ local function eval_ast(ast, obj)
 
     -- Helper helper: evaluate 'filter' expression inside abstract syntax tree
     local function eval_filter(expr, obj)
-        return eval_ast(expr[2], obj) and true or false
+        local result, err = eval_ast(expr[2], obj)
+        if err then
+            if err:is_not_found() then
+                return false
+            end
+        return nil, err
+    end
+        return result and true or false
     end
 
     -- Helper helper: evaluate 'slice' expression inside abstract syntax tree
     local function eval_slice(expr, obj)
         local matches = {}  -- [1] is "slice"
         if #expr == 4 then
-            local from = tonumber(eval_ast(expr[2], obj))
-            local to = tonumber(eval_ast(expr[3], obj))
-            local step = tonumber(eval_ast(expr[4], obj))
+            local from_result, err = eval_ast(expr[2], obj)
+            if err then return nil, err end
+
+            local to_result, err = eval_ast(expr[3], obj)
+            if err then return nil, err end
+
+            local step_result, err = eval_ast(expr[4], obj)
+            if err then return nil, err end
+
+            local from = tonumber(from_result)
+            local to = tonumber(to_result)
+            local step = tonumber(step_result)
+
             if (from == nil) or (from < 0) or (to == nil) or (to < 0) then
                 local len = eval_var_length(obj)
                 if from == nil then
@@ -638,7 +662,7 @@ local function eval_ast(ast, obj)
         for i = 3, #expr, 2 do
             local op_str = expr[i]
             if op_str == nil then
-                return nil, 'missing expression operator'
+                return nil, errors.bad_request('missing expression operator')
             end
             local op2, eval_err = eval_ast(expr[i + 1], obj)
             if is_nil(op2) then
@@ -646,7 +670,7 @@ local function eval_ast(ast, obj)
             end
             local op = parse_operator(op_str)
             if op == 0 then
-                return nil, "unknown operator"
+                return nil, errors.bad_request("unknown operator")
             end
             --- @cast op Operator
             local result, cast_err = exec_binary_op(op, op1, op2, op_str)
@@ -672,8 +696,7 @@ local function eval_ast(ast, obj)
     elseif ast[1] == 'filter' then
         return eval_filter(ast, obj)
     elseif ast[1] == 'slice' then
-        local result = eval_slice(ast, obj)
-        return result
+        return eval_slice(ast, obj)
     end
 
     return 0
@@ -705,7 +728,10 @@ local function match_path(ast, path, parent, obj)
                 end
             elseif ast_spec[1] == 'union' or ast_spec[1] == 'slice' then
                 -- match union or slice expression (on parent object)
-                local matches = eval_ast(ast_spec, parent)
+                local matches, err = eval_ast(ast_spec, parent)
+                if err then
+                    return nil, err
+                end
                 --- @cast matches table[]
                 for _, i in pairs(matches) do
                     match_component = tostring(i) == tostring(component)
@@ -715,7 +741,16 @@ local function match_path(ast, path, parent, obj)
                 end
             elseif ast_spec[1] == 'filter' then
                 -- match filter expression
-                match_component = eval_ast(ast_spec, obj) and true or false
+                local filter_result, err = eval_ast(ast_spec, obj)
+                if err then
+                    if err:is_not_found() then
+                        match_component = false
+                    else
+                        return nil, err
+                    end
+                else
+                    match_component = filter_result and true or false
+                end
             end
         else
             if ast_spec == '*' then
@@ -734,7 +769,16 @@ local function match_path(ast, path, parent, obj)
         if path_index == #path and ast_spec ~= "array" and match_component then
             local _, next_ast_spec = next(ast, ast_key)
             if next_ast_spec ~= nil and next_ast_spec[1] == 'filter' then
-                match_component = eval_ast(next_ast_spec, obj) and true or false
+                local filter_result, err = eval_ast(next_ast_spec, obj)
+                if err then
+                    if err:is_not_found() then
+                        match_component = false
+                    else
+                        return nil, err
+                    end
+                else
+                    match_component = filter_result and true or false
+                end
                 ast_key, ast_spec = ast_iter(ast, ast_key)
             end
         end
@@ -769,7 +813,10 @@ end
 
 local function match_tree(nodes, ast, path, parent, obj, count)
     -- Try to match every node against AST
-    local match = match_path(ast, path, parent, obj)
+    local match, err = match_path(ast, path, parent, obj)
+    if err then
+        return err
+    end
     if match == MATCH_ONE or match == MATCH_DESCENDANTS then
         -- This node matches. Add path and value to result
         -- (if max result count not yet reached)
@@ -792,7 +839,10 @@ local function match_tree(nodes, ast, path, parent, obj, count)
                 table.insert(path1, p)
             end
             table.insert(path1, type(key) == 'string' and key or (key - 1))
-            match_tree(nodes, ast, path1, obj, child, count)
+            local err = match_tree(nodes, ast, path1, obj, child, count)
+            if err then
+                return err
+            end
         end
     end
 end
@@ -818,15 +868,15 @@ end
 --
 function M.parse(expr)
     if expr == nil or type(expr) ~= 'string' then
-        return nil, "missing or invalid 'expr' argument"
+        return nil, errors.bad_request("missing or invalid 'expr' argument")
     end
 
     local ast = Ct(jsonpath_grammer * Cp()):match(expr)
     if ast == nil or #ast ~= 2 then
-        return nil, 'invalid expression "' .. expr .. '"'
+        return nil, errors.bad_request('invalid expression "' .. expr .. '"')
     end
     if ast[2] ~= #expr + 1 then
-        return nil, 'invalid expression "' .. expr .. '" near "' .. expr:sub(ast[2]) .. '"'
+        return nil, errors.bad_request('invalid expression "' .. expr .. '" near "' .. expr:sub(ast[2]) .. '"')
     end
     return ast[1]
 end
@@ -850,13 +900,13 @@ end
 --
 function M.nodes(obj, expr, count)
     if obj == nil or type(obj) ~= 'table' then
-        return nil, "missing or invalid 'obj' argument"
+        return nil, errors.bad_request("missing or invalid 'obj' argument")
     end
     if expr == nil or (type(expr) ~= 'string' and type(expr) ~= 'table') then
-        return nil, "missing or invalid 'expr' argument"
+        return nil, errors.bad_request("missing or invalid 'expr' argument")
     end
     if count ~= nil and type(count) ~= 'number' then
-        return nil, "invalid 'count' argument"
+        return nil, errors.bad_request("invalid 'count' argument")
     end
 
     local ast, err
@@ -868,7 +918,10 @@ function M.nodes(obj, expr, count)
         ast = expr
     end
     if ast == nil then
-        return nil, err or 'internal error'
+        if not err then
+            err = errors.internal("internal error")
+        end
+        return nil, err
     end
 
     if count ~= nil and count == 0 then
@@ -885,8 +938,10 @@ function M.nodes(obj, expr, count)
     end
 
     local matches = {}
-    match_tree(matches, ast, { '$' }, {}, obj, count)
-
+    local err = match_tree(matches, ast, { '$' }, {}, obj, count)
+    if err then
+        return nil, err
+    end
     -- Sort results by path
     local sorted = {}
     for p, v in pairs(matches) do
@@ -938,7 +993,7 @@ function M.value(obj, expr, count)
         return nodes[1].value
     end
 
-    return nil, 'no element matching expression'
+    return nil, errors.bad_request('no element matching expression')
 end
 
 
