@@ -101,7 +101,7 @@
 local M = {}
 
 local ffi = require('ffi')
-local errors = require('errors')
+local errors = require('jsonpath.errors')
 
 -- Use Roberto Ierusalimschy's fabulous LulPeg pattern-matching library
 local lulpeg = require('lulpeg')
