@@ -431,7 +431,7 @@ local function exec_binary_op(op, lval, rval, op_str)
         l_type = "number"
         lval = tonumber(lval)
     end
-    if r_type == 'cdata' and lval ~= NULL and tostring(ffi.typeof(rval)) == 'ctype<int64_t>' then
+    if r_type == 'cdata' and rval ~= NULL and tostring(ffi.typeof(rval)) == 'ctype<int64_t>' then
         r_type = "number"
         rval = tonumber(rval)
     end
@@ -523,6 +523,10 @@ local function exec_binary_op(op, lval, rval, op_str)
         if r_type == "number" and l_type == "boolean" then
             l_type = "number"
             lval = lval and 1 or 0
+        end
+
+        if is_null(lval) or is_null(rval) then
+            return false, nil
         end
 
         -- try to parse string as number, if other operand is number

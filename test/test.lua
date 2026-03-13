@@ -947,6 +947,29 @@ testQuery = {
         lu.assertItemsEquals(result, { array[2], array[3] })
     end,
 
+    testFilterNullablefieldComparison = function()
+        local array = {
+            { id = 1, value = jp.NULL },
+            { id = 2, value = 20 },
+            { id = 3, value = 30 },
+        }
+        local result, err = jp.query(array, '$[?(@.value>"20")]')
+        lu.assertNil(err)
+        lu.assertItemsEquals(result, { array[3] })
+
+        local result, err = jp.query(array, '$[?(@.value>="20")]')
+        lu.assertNil(err)
+        lu.assertItemsEquals(result, { array[2], array[3] })
+
+        local result, err = jp.query(array, '$[?(@.value<"30")]')
+        lu.assertNil(err)
+        lu.assertItemsEquals(result, { array[2] })
+
+        local result, err = jp.query(array, '$[?(@.value<="30")]')
+        lu.assertNil(err)
+        lu.assertItemsEquals(result, { array[2], array[3] })
+    end,
+
     testFilterIntBoolComparison = function ()
         local array = {
             { id = 1, value = 0 },
