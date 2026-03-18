@@ -25,6 +25,6 @@ dependencies = {
 build = {
    type = "builtin",
    modules = {
-      jsonpath = "jsonpath.lua"
+      ["jsonpath"] = "jsonpath/init.lua"
    }
 }

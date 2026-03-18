@@ -4,7 +4,7 @@ dev-prepare: build
 
 .PHONY: lint
 lint:
-	.rocks/bin/luacheck --config=.luacheckrc jsonpath.lua
+	.rocks/bin/luacheck --config=.luacheckrc jsonpath/init.lua
 
 .PHONY: test
 test: build lint
